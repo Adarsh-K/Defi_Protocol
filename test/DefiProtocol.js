@@ -61,5 +61,99 @@ describe("Contract deployment", () => {
         });
       })
     });
+
+    describe("Locking-Vesting", () => {
+      beforeEach(async () => {
+        await defiToken.transfer(user1.address, 360);
+        expect(await defiToken.balanceOf(user1.address)).equal(360);
+
+        await defiToken.connect(user1).approve(defiProtocol.address, 360);
+        await defiProtocol.connect(user1).lock(120);
+      });
+
+      it("User1 should have 1 Vesting Schedule", async () => {
+        expect(await defiToken.balanceOf(user1.address)).equal(360 - 120);
+        expect(await defiProtocol.getTotalVestingSchedules()).equal(1);
+        expect(await defiProtocol.getNumUserVestingSchedules(user1.address)).equal(1);
+      });
+
+      it("User1 should have 0 tokens vested", async () => {
+        expect(await defiProtocol.getUserVestedTokensByIndex(user1.address, 0)).equal(0);
+      });
+
+      it("User1 can't claim any tokens", async () => {
+        await defiProtocol.connect(user1).claim(0);
+        expect(await defiToken.balanceOf(user1.address)).equal(240);
+      });
+
+      it("User1 should have 60 vested tokens", async () => {
+        const sixMonths = 6 * 31 * 24 * 60 * 60;
+        await ethers.provider.send("evm_increaseTime", [sixMonths]);
+        await ethers.provider.send("evm_mine");
+        expect(await defiProtocol.getUserVestedTokensByIndex(user1.address, 0)).equal(60);
+      });
+
+      it("User1 can claim 60 tokens", async () => {
+        const sixMonths = 6 * 31 * 24 * 60 * 60;
+        await ethers.provider.send("evm_increaseTime", [sixMonths]);
+        await ethers.provider.send("evm_mine");
+        await defiProtocol.connect(user1).claim(0);
+        expect(await defiToken.balanceOf(user1.address)).equal(60 + 240);
+      });
+
+      it("User1 should have all 120 tokens vested", async () => {
+        const oneYear = 12 * 31 * 24 * 60 * 60;
+        await ethers.provider.send("evm_increaseTime", [oneYear]);
+        await ethers.provider.send("evm_mine");
+        expect(await defiProtocol.getUserVestedTokensByIndex(user1.address, 0)).equal(120);
+      });
+
+      it("User1 can claim all 120 tokens", async () => {
+        const oneYear = 12 * 31 * 24 * 60 * 60;
+        await ethers.provider.send("evm_increaseTime", [oneYear]);
+        await ethers.provider.send("evm_mine");
+        await defiProtocol.connect(user1).claim(0);
+        expect(await defiToken.balanceOf(user1.address)).equal(120 + 240);
+      });
+
+      describe("User1's 2nd Vesting Schedule", () => {
+        beforeEach(async () => {
+          const fiveMonths = 5 * 31 * 24 * 60 * 60;
+          await ethers.provider.send("evm_increaseTime", [fiveMonths]);
+          await ethers.provider.send("evm_mine");
+
+          await defiProtocol.connect(user1).lock(240);
+          expect(await defiToken.balanceOf(user1.address)).equal(0);
+        });
+
+        it("User1 should have 2 Vesting Schedules", async () => {
+          expect(await defiProtocol.getTotalVestingSchedules()).equal(2);
+          expect(await defiProtocol.getNumUserVestingSchedules(user1.address)).equal(2);
+        });
+
+        it("User1 should have 80 (60 + 20) vested tokens", async () => {
+          const oneMonth = 31 * 24 * 60 * 60;
+          await ethers.provider.send("evm_increaseTime", [oneMonth]);
+          await ethers.provider.send("evm_mine");
+          expect(await defiProtocol.getAllUserVestedTokens(user1.address)).equal(80);
+        });
+
+        it("User1 can claim all 40 tokens", async () => {
+          const twoMonths = 2 * 31 * 24 * 60 * 60;
+          await ethers.provider.send("evm_increaseTime", [twoMonths]);
+          await ethers.provider.send("evm_mine");
+          await defiProtocol.connect(user1).claim(1);
+          expect(await defiToken.balanceOf(user1.address)).equal(40);
+        });
+
+        it("User1 can claim all 360 tokens", async () => {
+          const twoYear = 2 * 12 * 31 * 24 * 60 * 60;
+          await ethers.provider.send("evm_increaseTime", [twoYear]);
+          await ethers.provider.send("evm_mine");
+          await defiProtocol.connect(user1).claimAll();
+          expect(await defiToken.balanceOf(user1.address)).equal(120 + 240);
+        });
+      });
+    });
   });
 });
