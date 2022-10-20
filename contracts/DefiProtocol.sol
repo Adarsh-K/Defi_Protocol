@@ -76,6 +76,13 @@ contract DefiProtocol {
         _stakes[msg.sender] = _stakes[msg.sender].sub(amount);
     }
 
+    function unstakeUser(address userAddress, uint256 amount) public adminOnly {
+        require(_stakes[userAddress] >= amount, "Insufficient Stake");
+        require(isEmergencyPanic(), "Not an emergency");
+        _token.transfer(userAddress, amount);
+        _stakes[userAddress] = _stakes[userAddress].sub(amount);
+    }
+
     function lock(uint256 amount) public {
         require(amount > 0, "Locked amount should be > 0");
         _token.transferFrom(msg.sender, address(this), amount);

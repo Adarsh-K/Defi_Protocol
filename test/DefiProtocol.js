@@ -157,6 +157,34 @@ describe("Contract deployment", () => {
     });
 
     describe("Multisig Admin", () => {
+      describe("UnstakeUser", () => {
+        beforeEach(async () => {
+          await defiToken.transfer(user1.address, 100);
+          await defiToken.connect(user1).approve(defiProtocol.address, 100);
+          await defiProtocol.connect(user1).stake(100);
+        });
+
+        it("Non-admin can't unstake for another user", async () => {
+          await expect(defiProtocol.connect(user2).unstakeUser(user1.address, 100)).to.be.reverted;
+          expect(await defiToken.balanceOf(user1.address)).equal(0);
+        });
+
+        it("Not unstaked unless required unmber of admins had confirmed EmergencyPanic", async() => {
+          await defiProtocol.connect(admin2).confirmEmergencyPanic();
+
+          await expect(defiProtocol.connect(admin2).unstakeUser(user1.address, 100)).to.be.reverted;
+          expect(await defiToken.balanceOf(user1.address)).equal(0);
+        });
+
+        it("Admins can unstake if emergency", async() => {
+          await defiProtocol.connect(admin1).confirmEmergencyPanic();
+          await defiProtocol.connect(admin2).confirmEmergencyPanic();
+
+          await expect(defiProtocol.connect(admin2).unstakeUser(user1.address, 100)).to.be.not.reverted;
+          expect(await defiToken.balanceOf(user1.address)).equal(100);
+        });
+      });
+
       it("Non-admin not allowed to confirm EmergencyPanic", async () => {
         await expect(defiProtocol.connect(user1).confirmEmergencyPanic()).to.be.reverted;
       });
@@ -192,6 +220,26 @@ describe("Contract deployment", () => {
 
           await defiProtocol.connect(user1).claimAll();
           expect(await defiToken.balanceOf(user1.address)).equal(100);
+        });
+
+        it("Revoked: Users can't claim locked tokens unless all the required number of admins (2) have confirmed EmergencyPanic", async () => {
+          expect(await defiToken.balanceOf(user1.address)).equal(0);
+
+          await defiProtocol.connect(admin1).confirmEmergencyPanic();
+          await defiProtocol.connect(admin2).confirmEmergencyPanic();
+          expect(await defiProtocol.confirmedEmergencyPanic()).equal(2);
+
+          await defiProtocol.connect(admin1).revokeEmergencyPanic();
+          expect(await defiProtocol.confirmedEmergencyPanic()).equal(1);
+
+          // At least those tokens which are vested can be claimed
+          const sixMonths = 6 * 31 * 24 * 60 * 60;
+          await ethers.provider.send("evm_increaseTime", [sixMonths]);
+          await ethers.provider.send("evm_mine");
+
+          // Using claim instead of claimAll, just to test it as well
+          await defiProtocol.connect(user1).claim(0);
+          expect(await defiToken.balanceOf(user1.address)).equal(50);
         });
       });
     });
