@@ -22,9 +22,47 @@ contract DefiProtocol {
     mapping(bytes32 => VestingSchedule) private _vestingSchedules;
     mapping(address => uint256) private _userTotalVestingSchedules;
 
-    constructor(address token) {
+    uint256 public confirmedEmergencyPanic;
+    uint256 public requiredConfirmedEmergencyPanic;
+    mapping(address => bool) public isAdmin;
+    mapping(address => bool) public adminConfirmations;
+
+    modifier adminOnly() {
+        require(isAdmin[msg.sender], "Not an Admin");
+        _;
+    }
+
+    constructor(address token, address[] memory _admins, uint256 _requiredConfirmedEmergencyPanic) {
         require(token != address(0x0));
+        require(_admins.length > 1, "At least 2 admins required");
+        require(_requiredConfirmedEmergencyPanic > 1
+            && _requiredConfirmedEmergencyPanic <= _admins.length, "Invalid required confirmations");
+
+        for (uint256 index = 0; index < _admins.length; index++) {
+            address _admin = _admins[index];
+            require(_admin != address(0x0), "Invalid Admin");
+            require(!isAdmin[_admin], "Already an admin");
+
+            isAdmin[_admin] = true;
+        }
+        requiredConfirmedEmergencyPanic = _requiredConfirmedEmergencyPanic;
         _token = IERC20(token);
+    }
+
+    function isEmergencyPanic() view public returns(bool) {
+        return confirmedEmergencyPanic >= requiredConfirmedEmergencyPanic;
+    }
+
+    function confirmEmergencyPanic() public adminOnly {
+        require(!adminConfirmations[msg.sender], "Admin already confirmed EmergencyPanic");
+        adminConfirmations[msg.sender] = true;
+        confirmedEmergencyPanic = confirmedEmergencyPanic.add(1);
+    }
+
+    function revokeEmergencyPanic() public adminOnly {
+        require(adminConfirmations[msg.sender], "No confirmed EmergencyPanic from Admin yet");
+        adminConfirmations[msg.sender] = false;
+        confirmedEmergencyPanic = confirmedEmergencyPanic.sub(1);
     }
 
     function stake(uint256 amount) public {
@@ -96,7 +134,7 @@ contract DefiProtocol {
         require(index < getNumUserVestingSchedules(userAddress));
         VestingSchedule storage vestingSchedule = _vestingSchedules[getUserVestingIdByIndex(userAddress, index)]; // extract in function
         uint256 vestingDurationMonths = (block.timestamp.sub(vestingSchedule.start)).div(2_629_746);
-        if (vestingDurationMonths >= 12) {
+        if (vestingDurationMonths >= 12 || isEmergencyPanic()) {
             return vestingSchedule.amount;
         }
         return vestingSchedule.amount.mul(vestingDurationMonths).div(12);

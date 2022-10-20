@@ -1,7 +1,7 @@
 const { expect } = require("chai");
 
 describe("Contract deployment", () => {
-  let defiTokenFactory, defiProtocolFactory, defiToken, owner, user1, user2, users;
+  let defiTokenFactory, defiProtocolFactory, defiToken, owner, user1, user2, admin1, admin2, users;
 
   before(async () => {
     defiTokenFactory = await ethers.getContractFactory("DefiToken");
@@ -9,7 +9,7 @@ describe("Contract deployment", () => {
   });
 
   beforeEach(async () => {
-    [owner, user1, user2, ...users] = await ethers.getSigners();
+    [owner, user1, user2, admin1, admin2, ...users] = await ethers.getSigners();
     defiToken = await defiTokenFactory.deploy("DefiToken", "DFT", 1000000);
     await defiToken.deployed();
   });
@@ -24,7 +24,7 @@ describe("Contract deployment", () => {
     let defiProtocol;
 
     beforeEach(async () => {
-      defiProtocol = await defiProtocolFactory.deploy(defiToken.address);
+      defiProtocol = await defiProtocolFactory.deploy(defiToken.address, [admin1.address, admin2.address], 2);
       await defiProtocol.deployed();
     });
 
@@ -152,6 +152,46 @@ describe("Contract deployment", () => {
           await ethers.provider.send("evm_mine");
           await defiProtocol.connect(user1).claimAll();
           expect(await defiToken.balanceOf(user1.address)).equal(120 + 240);
+        });
+      });
+    });
+
+    describe("Multisig Admin", () => {
+      it("Non-admin not allowed to confirm EmergencyPanic", async () => {
+        await expect(defiProtocol.connect(user1).confirmEmergencyPanic()).to.be.reverted;
+      });
+
+      it("Admin can confirm EmergencyPanic only once", async () => {
+        await expect(defiProtocol.connect(admin1).confirmEmergencyPanic()).to.be.not.reverted;
+        await expect(defiProtocol.connect(admin1).confirmEmergencyPanic()).to.be.reverted;
+      });
+
+      describe("Unlock tokens after EmergencyPanic", () => {
+        beforeEach(async () => {
+          await defiToken.transfer(user1.address, 100);
+          await defiToken.connect(user1).approve(defiProtocol.address, 100);
+          await defiProtocol.connect(user1).lock(100);
+        });
+
+        it("Users can't claim locked tokens unless all the required number of admins (2) have confirmed EmergencyPanic", async () => {
+          expect(await defiToken.balanceOf(user1.address)).equal(0);
+
+          await defiProtocol.connect(admin1).confirmEmergencyPanic();
+          expect(await defiProtocol.confirmedEmergencyPanic()).equal(1);
+
+          await defiProtocol.connect(user1).claimAll();
+          expect(await defiToken.balanceOf(user1.address)).equal(0);
+        });
+
+        it("Users should be able to claim locked tokens when all the required number of admins (2) have confirmed EmergencyPanic", async () => {
+          expect(await defiToken.balanceOf(user1.address)).equal(0);
+
+          await defiProtocol.connect(admin1).confirmEmergencyPanic();
+          await defiProtocol.connect(admin2).confirmEmergencyPanic();
+          expect(await defiProtocol.confirmedEmergencyPanic()).equal(2);
+
+          await defiProtocol.connect(user1).claimAll();
+          expect(await defiToken.balanceOf(user1.address)).equal(100);
         });
       });
     });
