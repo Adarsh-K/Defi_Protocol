@@ -185,6 +185,26 @@ describe("Contract deployment", () => {
         });
       });
 
+      it("Only Admin can add a user to blacklist", async () => {
+        await defiToken.transfer(user2.address, 100);
+        await defiToken.connect(user2).approve(defiProtocol.address, 100);
+
+        await expect(defiProtocol.connect(user1).addUserToBlacklist(user2.address)).to.be.revertedWith("Not an Admin");
+
+        await defiProtocol.connect(user2).lock(100);
+        expect (await defiProtocol.getNumUserVestingSchedules(user2.address)).equal(1);
+      });
+
+      it("Even one admin can add a user to blacklist", async () => {
+        await defiToken.transfer(user2.address, 100);
+        await defiToken.connect(user2).approve(defiProtocol.address, 100);
+
+        await expect(defiProtocol.connect(admin1).addUserToBlacklist(user2.address)).to.be.not.reverted;
+
+        await expect(defiProtocol.connect(user2).lock(100)).to.be.revertedWith("Blacklisted users can't lock");
+        expect (await defiProtocol.getNumUserVestingSchedules(user2.address)).equal(0);
+      });
+
       it("Non-admin not allowed to confirm EmergencyPanic", async () => {
         await expect(defiProtocol.connect(user1).confirmEmergencyPanic()).to.be.reverted;
       });
@@ -205,6 +225,17 @@ describe("Contract deployment", () => {
           expect(await defiToken.balanceOf(user1.address)).equal(0);
 
           await defiProtocol.connect(admin1).confirmEmergencyPanic();
+          expect(await defiProtocol.confirmedEmergencyPanic()).equal(1);
+
+          await defiProtocol.connect(user1).claimAll();
+          expect(await defiToken.balanceOf(user1.address)).equal(0);
+        });
+
+        it("An Admin can't confirm EmergencyPanic more than once", async () => {
+          expect(await defiToken.balanceOf(user1.address)).equal(0);
+
+          await defiProtocol.connect(admin1).confirmEmergencyPanic();
+          await expect(defiProtocol.connect(admin1).confirmEmergencyPanic()).to.be.rejectedWith("Admin already confirmed EmergencyPanic");
           expect(await defiProtocol.confirmedEmergencyPanic()).equal(1);
 
           await defiProtocol.connect(user1).claimAll();

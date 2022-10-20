@@ -26,6 +26,7 @@ contract DefiProtocol {
     uint256 public requiredConfirmedEmergencyPanic;
     mapping(address => bool) public isAdmin;
     mapping(address => bool) public adminConfirmations;
+    mapping(address => bool) public blackList;
 
     modifier adminOnly() {
         require(isAdmin[msg.sender], "Not an Admin");
@@ -65,6 +66,12 @@ contract DefiProtocol {
         confirmedEmergencyPanic = confirmedEmergencyPanic.sub(1);
     }
 
+    // Even a single admin can add a user to blacklist
+    function addUserToBlacklist(address userAddress) public adminOnly {
+        require(!blackList[userAddress], "User already blacklisted");
+        blackList[userAddress] = true;
+    }
+
     function stake(uint256 amount) public {
         _token.transferFrom(msg.sender, address(this), amount); // safe?
         _stakes[msg.sender] = _stakes[msg.sender].add(amount);
@@ -84,6 +91,7 @@ contract DefiProtocol {
     }
 
     function lock(uint256 amount) public {
+        require(!blackList[msg.sender], "Blacklisted users can't lock");
         require(amount > 0, "Locked amount should be > 0");
         _token.transferFrom(msg.sender, address(this), amount);
         _vestingSchedules[getUserNextVestingId(msg.sender)] = VestingSchedule(
