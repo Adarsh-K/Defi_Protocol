@@ -2,12 +2,12 @@
 pragma solidity ^0.8.9;
 
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
+import "./DefiCard.sol";
+import "./DefiToken.sol";
 
-contract DefiProtocol {
+contract DefiProtocol is IERC721Receiver {
     using SafeMath for uint256;
-    using SafeERC20 for IERC20;
 
     struct VestingSchedule{
         uint256 start;
@@ -15,7 +15,8 @@ contract DefiProtocol {
         uint256 claimed;
     }
 
-    IERC20 immutable private _token;
+    DefiToken immutable private _token;
+    DefiCard immutable private _card;
     mapping(address => uint256) private _stakes;
 
     uint256 private _numVestingSchedules;
@@ -33,7 +34,7 @@ contract DefiProtocol {
         _;
     }
 
-    constructor(address token, address[] memory _admins, uint256 _requiredConfirmedEmergencyPanic) {
+    constructor(address token, address card, address[] memory _admins, uint256 _requiredConfirmedEmergencyPanic) {
         require(token != address(0x0));
         require(_admins.length > 1, "At least 2 admins required");
         require(_requiredConfirmedEmergencyPanic > 1
@@ -47,7 +48,24 @@ contract DefiProtocol {
             isAdmin[_admin] = true;
         }
         requiredConfirmedEmergencyPanic = _requiredConfirmedEmergencyPanic;
-        _token = IERC20(token);
+        _token = DefiToken(token);
+        _card = DefiCard(card);
+    }
+
+    function createCard(uint256 amount) external returns(uint256) {
+        _token.transferFrom(msg.sender, address(this), amount);
+        return _card.mint(msg.sender, amount);
+    }
+
+    function banishCard(uint256 cardId) external {
+        require(_card.ownerOf(cardId) == msg.sender, "Only card owner can banish the card");
+        _card.safeTransferFrom(msg.sender, address(this), cardId);
+        _token.mint(msg.sender, _card.getPower(cardId));
+        // TODO: burn cardId
+    }
+
+    function onERC721Received(address, address, uint256, bytes calldata) external pure returns (bytes4) {
+        return IERC721Receiver.onERC721Received.selector;
     }
 
     function isEmergencyPanic() view public returns(bool) {
@@ -109,7 +127,7 @@ contract DefiProtocol {
 
         VestingSchedule storage vestingSchedule = _vestingSchedules[getUserVestingIdByIndex(msg.sender, index)];
         vestingSchedule.claimed = vestingSchedule.claimed.add(unclaimedTokens);
-        _token.safeTransfer(payable(msg.sender), unclaimedTokens);
+        _token.transfer(payable(msg.sender), unclaimedTokens);
     }
 
     function claimAll() public {
@@ -120,7 +138,7 @@ contract DefiProtocol {
             vestingSchedule.claimed = vestingSchedule.claimed.add(unclaimedTokens);
             totalClaimableTokens = totalClaimableTokens.add(unclaimedTokens);
         }
-        _token.safeTransfer(payable(msg.sender), totalClaimableTokens);
+        _token.transfer(payable(msg.sender), totalClaimableTokens);
     }
 
     function getUnclaimedToken(address userAddess, uint256 index) view public returns(uint256) {
