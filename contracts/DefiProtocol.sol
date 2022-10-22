@@ -2,11 +2,12 @@
 pragma solidity ^0.8.9;
 
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
-import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC721/IERC721ReceiverUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "./DefiCard.sol";
 import "./DefiToken.sol";
 
-contract DefiProtocol is IERC721Receiver {
+contract DefiProtocol is IERC721ReceiverUpgradeable, Initializable {
     using SafeMath for uint256;
 
     struct VestingSchedule{
@@ -15,8 +16,8 @@ contract DefiProtocol is IERC721Receiver {
         uint256 claimed;
     }
 
-    DefiToken immutable private _token;
-    DefiCard immutable private _card;
+    DefiToken private _token;
+    DefiCard private _card;
     mapping(address => uint256) private _stakes;
 
     uint256 private _numVestingSchedules;
@@ -34,8 +35,8 @@ contract DefiProtocol is IERC721Receiver {
         _;
     }
 
-    constructor(address token, address card, address[] memory _admins, uint256 _requiredConfirmedEmergencyPanic) {
-        require(token != address(0x0));
+    function initialize(address token, address card, address[] memory _admins, uint256 _requiredConfirmedEmergencyPanic) initializer public {
+        require(token != address(0));
         require(_admins.length > 1, "At least 2 admins required");
         require(_requiredConfirmedEmergencyPanic > 1
             && _requiredConfirmedEmergencyPanic <= _admins.length, "Invalid required confirmations");

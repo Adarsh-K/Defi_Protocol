@@ -29,7 +29,13 @@ describe("Contract deployment", () => {
     let defiProtocol;
 
     beforeEach(async () => {
-      defiProtocol = await defiProtocolFactory.deploy(defiToken.address, defiCard.address, [admin1.address, admin2.address], 2);
+      // defiProtocol = await defiProtocolFactory.deploy(defiToken.address, defiCard.address, [admin1.address, admin2.address], 2);
+      defiProtocol = await upgrades.deployProxy(defiProtocolFactory, [
+        defiToken.address,
+        defiCard.address,
+        [admin1.address, admin2.address],
+        2
+      ], { initializer: "initialize" });
       await defiProtocol.deployed();
 
       await defiToken.transferOwnership(defiProtocol.address);
