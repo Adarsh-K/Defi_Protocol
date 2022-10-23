@@ -21,16 +21,15 @@ contract DefiCard is ERC721, Ownable {
         uint8 evolution;
     }
 
-    CardData[] private _cards;
+    mapping(uint256 => CardData) _cards;
 
     constructor(string memory _name, string memory _symbol)
         ERC721(_name, _symbol) {}
 
-    function mint(address userAddress, uint256 _initialPower) external onlyOwner returns(uint256) {
-        _safeMint(userAddress, _cards.length);
+    function mint(uint256 cardId, address userAddress, uint256 _initialPower) external onlyOwner {
+        _safeMint(userAddress, cardId);
         // TODO: get random uint then use that to set other CardData attributes
-        _cards.push(CardData(block.timestamp, _initialPower, 1, 1, 1, 1));
-        return _cards.length.sub(1);
+        _cards[cardId] = CardData(block.timestamp, _initialPower, 1, 1, 1, 1);
     }
 
     function getPower(uint256 cardId) view external returns(uint256) {

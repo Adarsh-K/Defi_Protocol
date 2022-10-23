@@ -4,11 +4,17 @@ pragma solidity ^0.8.9;
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC721/IERC721ReceiverUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts/utils/Counters.sol";
 import "./DefiCard.sol";
 import "./DefiToken.sol";
 
+import "hardhat/console.sol";
+
 contract DefiProtocol is IERC721ReceiverUpgradeable, Initializable {
     using SafeMath for uint256;
+    using Counters for Counters.Counter;
+
+    Counters.Counter private _cardIds;
 
     struct VestingSchedule{
         uint256 start;
@@ -54,8 +60,10 @@ contract DefiProtocol is IERC721ReceiverUpgradeable, Initializable {
     }
 
     function createCard(uint256 amount) external returns(uint256) {
+        _cardIds.increment();
         _token.transferFrom(msg.sender, address(this), amount);
-        return _card.mint(msg.sender, amount);
+        _card.mint(_cardIds.current(), msg.sender, amount);
+        return _cardIds.current();
     }
 
     function banishCard(uint256 cardId) external {

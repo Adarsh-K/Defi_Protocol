@@ -307,13 +307,13 @@ describe("Contract deployment", () => {
         });
 
         it("User1 owns card1", async () => {
-          expect(await defiCard.ownerOf(card1Id.value)).equal(user1.address);
+          expect(await defiCard.ownerOf(1)).equal(user1.address);
           expect(await defiToken.balanceOf(user1.address)).equal(150);
         });
 
         it("User can create multiple cards", async () => {
           card2Id = await defiProtocol.connect(user1).createCard(50);
-          expect(await defiCard.ownerOf(card2Id.value)).equal(user1.address);
+          expect(await defiCard.ownerOf(2)).equal(user1.address);
           expect(await defiToken.balanceOf(user1.address)).equal(100);
         });
 
@@ -322,12 +322,12 @@ describe("Contract deployment", () => {
 
           // Simulating a 3rd party exchange
           await defiToken.connect(user2).transfer(user1.address, 150);
-          await defiCard.connect(user1).transferFrom(user1.address, user2.address, card1Id.value);
+          await defiCard.connect(user1).transferFrom(user1.address, user2.address, 1);
           expect(await defiToken.balanceOf(user1.address)).equal(150 + 150);
           expect(await defiToken.balanceOf(user2.address)).equal(0);
 
-          expect(await defiCard.ownerOf(card1Id.value)).equal(user2.address);
-          expect(await defiCard.ownerOf(card1Id.value)).not.equal(user1.address);
+          expect(await defiCard.ownerOf(1)).equal(user2.address);
+          expect(await defiCard.ownerOf(1)).not.equal(user1.address);
         });
       });
 
@@ -337,36 +337,36 @@ describe("Contract deployment", () => {
         });
 
         it("Fail banish from another user", async () => {
-          expect(await defiCard.ownerOf(card1Id.value)).equal(user1.address);
+          expect(await defiCard.ownerOf(1)).equal(user1.address);
           await defiCard.connect(user1).setApprovalForAll(defiProtocol.address, true);
 
-          await expect(defiProtocol.connect(user2).banishCard(card1Id.value))
+          await expect(defiProtocol.connect(user2).banishCard(1))
             .to.be.revertedWith("Only card owner can banish the card"); // user2 not owner of card1
 
-          expect(await defiCard.ownerOf(card1Id.value)).equal(user1.address);
+          expect(await defiCard.ownerOf(1)).equal(user1.address);
           expect(await defiToken.balanceOf(user1.address)).equal(150);
         });
 
         it("Successfully banish", async () => {
-          expect(await defiCard.ownerOf(card1Id.value)).equal(user1.address);
+          expect(await defiCard.ownerOf(1)).equal(user1.address);
           await defiCard.connect(user1).setApprovalForAll(defiProtocol.address, true);
 
-          await expect(defiProtocol.connect(user1).banishCard(card1Id.value)).to.be.not.reverted;
+          await expect(defiProtocol.connect(user1).banishCard(1)).to.be.not.reverted;
 
-          expect(await defiCard.ownerOf(card1Id.value)).not.equal(user1.address);
+          expect(await defiCard.ownerOf(1)).not.equal(user1.address);
           expect(await defiToken.balanceOf(user1.address)).equal(200);
         });
 
         it("Card gains power everyday", async () => {
-          expect(await defiCard.ownerOf(card1Id.value)).equal(user1.address);
+          expect(await defiCard.ownerOf(1)).equal(user1.address);
           await defiCard.connect(user1).setApprovalForAll(defiProtocol.address, true);
 
           const twoDays = 2.5 * 24 * 60 * 60;
           await ethers.provider.send("evm_increaseTime", [twoDays]);
           await ethers.provider.send("evm_mine");
-          await expect(defiProtocol.connect(user1).banishCard(card1Id.value)).to.be.not.reverted;
+          await expect(defiProtocol.connect(user1).banishCard(1)).to.be.not.reverted;
 
-          expect(await defiCard.ownerOf(card1Id.value)).not.equal(user1.address);
+          expect(await defiCard.ownerOf(1)).not.equal(user1.address);
           expect(await defiToken.balanceOf(user1.address)).equal(203);
         });
       });
