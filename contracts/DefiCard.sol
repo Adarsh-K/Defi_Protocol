@@ -28,8 +28,15 @@ contract DefiCard is ERC721, Ownable {
 
     function mint(uint256 cardId, address userAddress, uint256 _initialPower) external onlyOwner {
         _safeMint(userAddress, cardId);
-        // TODO: get random uint then use that to set other CardData attributes
-        _cards[cardId] = CardData(block.timestamp, _initialPower, 1, 1, 1, 1);
+
+        uint256 random = block.timestamp;
+        uint8 color = uint8(random.mod(3).add(1));
+        uint256 _symbol = random.mod(4);
+        uint8 symbol = uint8(_symbol.mul(2).add(_symbol.div(3)));
+        uint8 tier = uint8(random.mod(5).add(1));
+        uint8 evolution = uint8(random.mod(100).add(1));
+
+        _cards[cardId] = CardData(block.timestamp, _initialPower, color, symbol, tier, evolution);
     }
 
     function getPower(uint256 cardId) view external returns(uint256) {
