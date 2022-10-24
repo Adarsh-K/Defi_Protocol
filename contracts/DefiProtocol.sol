@@ -156,7 +156,7 @@ contract DefiProtocol is IERC721ReceiverUpgradeable, Initializable, ReentrancyGu
         require(index < getNumUserVestingSchedules(msg.sender)); // put it in a modifier
         uint256 unclaimedTokens = getUnclaimedToken(msg.sender, index);
 
-        VestingSchedule storage vestingSchedule = _vestingSchedules[getUserVestingIdByIndex(msg.sender, index)];
+        VestingSchedule storage vestingSchedule = getVestingSchedule(msg.sender, index);
         vestingSchedule.claimed = vestingSchedule.claimed.add(unclaimedTokens);
         _token.transfer(payable(msg.sender), unclaimedTokens);
         emit Claimed(msg.sender, index);
@@ -166,7 +166,7 @@ contract DefiProtocol is IERC721ReceiverUpgradeable, Initializable, ReentrancyGu
         uint256 totalClaimableTokens;
         for (uint256 index = 0; index < getNumUserVestingSchedules(msg.sender); index++) {
             uint256 unclaimedTokens = getUnclaimedToken(msg.sender, index);
-            VestingSchedule storage vestingSchedule = _vestingSchedules[getUserVestingIdByIndex(msg.sender, index)];
+            VestingSchedule storage vestingSchedule = getVestingSchedule(msg.sender, index);
             vestingSchedule.claimed = vestingSchedule.claimed.add(unclaimedTokens);
             totalClaimableTokens = totalClaimableTokens.add(unclaimedTokens);
         }
@@ -174,9 +174,9 @@ contract DefiProtocol is IERC721ReceiverUpgradeable, Initializable, ReentrancyGu
         emit ClaimedAll(msg.sender);
     }
 
-    function getUnclaimedToken(address userAddess, uint256 index) view public returns(uint256) {
-        uint256 vestedTokens = getUserVestedTokensByIndex(userAddess, index);
-        VestingSchedule storage vestingSchedule = _vestingSchedules[getUserVestingIdByIndex(userAddess, index)];
+    function getUnclaimedToken(address userAddress, uint256 index) view public returns(uint256) {
+        uint256 vestedTokens = getUserVestedTokensByIndex(userAddress, index);
+        VestingSchedule storage vestingSchedule = getVestingSchedule(userAddress, index);
         return vestedTokens.sub(vestingSchedule.claimed);
     }
 
@@ -198,8 +198,7 @@ contract DefiProtocol is IERC721ReceiverUpgradeable, Initializable, ReentrancyGu
 
     function getUserVestedTokensByIndex(address userAddress, uint256 index) view public returns(uint256) {
         require(index < getNumUserVestingSchedules(userAddress));
-        // extract in function
-        VestingSchedule storage vestingSchedule = _vestingSchedules[getUserVestingIdByIndex(userAddress, index)];
+        VestingSchedule storage vestingSchedule = getVestingSchedule(userAddress, index);
         uint256 vestingDurationMonths = (block.timestamp.sub(vestingSchedule.start)).div(2_629_746);
         if (vestingDurationMonths >= 12 || isEmergencyPanic()) {
             return vestingSchedule.amount;
@@ -213,5 +212,9 @@ contract DefiProtocol is IERC721ReceiverUpgradeable, Initializable, ReentrancyGu
             totalVestedTokens = totalVestedTokens.add(getUserVestedTokensByIndex(userAddress, index));
         }
         return totalVestedTokens;
+    }
+
+    function getVestingSchedule(address userAddress, uint256 index) view internal returns(VestingSchedule storage) {
+        return _vestingSchedules[getUserVestingIdByIndex(userAddress, index)];
     }
 }
