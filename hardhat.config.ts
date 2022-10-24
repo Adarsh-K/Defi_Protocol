@@ -4,7 +4,7 @@ require("@nomiclabs/hardhat-ethers");
 require('@openzeppelin/hardhat-upgrades');
 
 const config: HardhatUserConfig = {
-  solidity: "0.8.17",
+  solidity: "0.8.9",
 };
 
 export default config;
