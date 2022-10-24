@@ -2,10 +2,10 @@
 pragma solidity ^0.8.9;
 
 interface Module1 {
-    event AdminConfirmedEmergency();
-    event AdminRevokedEmergency();
-    event AdminAddedBlacklist();
-    event AdminUnstakedUser();
+    event AdminConfirmedEmergency(address indexed user);
+    event AdminRevokedEmergency(address indexed user);
+    event AdminAddedBlacklist(address indexed user);
+    event AdminUnstakedUser(address indexed user);
     event Staked(address indexed user, uint256 amount);
     event Unstaked(address indexed user, uint256 amount);
     event Locked(address indexed user, uint256 amount);

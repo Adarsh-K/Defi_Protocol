@@ -29,7 +29,6 @@ describe("Contract deployment", () => {
     let defiProtocol;
 
     beforeEach(async () => {
-      // defiProtocol = await defiProtocolFactory.deploy(defiToken.address, defiCard.address, [admin1.address, admin2.address], 2);
       defiProtocol = await upgrades.deployProxy(defiProtocolFactory, [
         defiToken.address,
         defiCard.address,
@@ -60,17 +59,17 @@ describe("Contract deployment", () => {
       describe("Successful Stake", () => {
         beforeEach(async () => {
           await defiToken.connect(user1).approve(defiProtocol.address, 50);
-          await expect(defiProtocol.connect(user1).stake(50)).to.be.not.reverted;
+          await expect(defiProtocol.connect(user1).stake(50)).to.emit(defiProtocol, "Staked").withArgs(user1.address, 50);
           expect(await defiToken.balanceOf(user1.address)).equal(50);
         });
 
         it("Unsuccessful Unstake", async () => {
-          await expect(defiProtocol.connect(user1).unstake(60)).to.be.reverted;
+          await expect(defiProtocol.connect(user1).unstake(60)).to.be.revertedWith("Insufficient Stake");
           expect(await defiToken.balanceOf(user1.address)).equal(50);
         });
 
         it("Successful Unstake", async () => {
-          await expect(defiProtocol.connect(user1).unstake(10)).to.be.not.reverted;
+          await expect(defiProtocol.connect(user1).unstake(10)).to.emit(defiProtocol, "Unstaked").withArgs(user1.address, 10);
           expect(await defiToken.balanceOf(user1.address)).equal(60);
         });
       })
@@ -82,7 +81,7 @@ describe("Contract deployment", () => {
         expect(await defiToken.balanceOf(user1.address)).equal(360);
 
         await defiToken.connect(user1).approve(defiProtocol.address, 360);
-        await defiProtocol.connect(user1).lock(120);
+        await expect(defiProtocol.connect(user1).lock(120)).to.emit(defiProtocol, "Locked").withArgs(user1.address, 120);
       });
 
       it("User1 should have 1 Vesting Schedule", async () => {
@@ -96,7 +95,7 @@ describe("Contract deployment", () => {
       });
 
       it("User1 can't claim any tokens", async () => {
-        await defiProtocol.connect(user1).claim(0);
+        await expect(defiProtocol.connect(user1).claim(0)).to.emit(defiProtocol, "Claimed").withArgs(user1.address, 0);
         expect(await defiToken.balanceOf(user1.address)).equal(240);
       });
 
@@ -111,7 +110,7 @@ describe("Contract deployment", () => {
         const sixMonths = 6 * 31 * 24 * 60 * 60;
         await ethers.provider.send("evm_increaseTime", [sixMonths]);
         await ethers.provider.send("evm_mine");
-        await defiProtocol.connect(user1).claim(0);
+        await expect(defiProtocol.connect(user1).claim(0)).to.emit(defiProtocol, "Claimed").withArgs(user1.address, 0);
         expect(await defiToken.balanceOf(user1.address)).equal(60 + 240);
       });
 
@@ -126,7 +125,7 @@ describe("Contract deployment", () => {
         const oneYear = 12 * 31 * 24 * 60 * 60;
         await ethers.provider.send("evm_increaseTime", [oneYear]);
         await ethers.provider.send("evm_mine");
-        await defiProtocol.connect(user1).claim(0);
+        await expect(defiProtocol.connect(user1).claim(0)).to.emit(defiProtocol, "Claimed").withArgs(user1.address, 0);
         expect(await defiToken.balanceOf(user1.address)).equal(120 + 240);
       });
 
@@ -136,7 +135,7 @@ describe("Contract deployment", () => {
           await ethers.provider.send("evm_increaseTime", [fiveMonths]);
           await ethers.provider.send("evm_mine");
 
-          await defiProtocol.connect(user1).lock(240);
+          await expect(defiProtocol.connect(user1).lock(240)).to.emit(defiProtocol, "Locked").withArgs(user1.address, 240);
           expect(await defiToken.balanceOf(user1.address)).equal(0);
         });
 
@@ -156,7 +155,7 @@ describe("Contract deployment", () => {
           const twoMonths = 2 * 31 * 24 * 60 * 60;
           await ethers.provider.send("evm_increaseTime", [twoMonths]);
           await ethers.provider.send("evm_mine");
-          await defiProtocol.connect(user1).claim(1);
+          await expect(defiProtocol.connect(user1).claim(1)).to.emit(defiProtocol, "Claimed").withArgs(user1.address, 1);
           expect(await defiToken.balanceOf(user1.address)).equal(40);
         });
 
@@ -164,7 +163,7 @@ describe("Contract deployment", () => {
           const twoYear = 2 * 12 * 31 * 24 * 60 * 60;
           await ethers.provider.send("evm_increaseTime", [twoYear]);
           await ethers.provider.send("evm_mine");
-          await defiProtocol.connect(user1).claimAll();
+          await expect(defiProtocol.connect(user1).claimAll()).to.emit(defiProtocol, "ClaimedAll").withArgs(user1.address);
           expect(await defiToken.balanceOf(user1.address)).equal(120 + 240);
         });
       });
@@ -184,17 +183,17 @@ describe("Contract deployment", () => {
         });
 
         it("Not unstaked unless required unmber of admins had confirmed EmergencyPanic", async() => {
-          await defiProtocol.connect(admin2).confirmEmergencyPanic();
+          await expect(defiProtocol.connect(admin2).confirmEmergencyPanic()).to.emit(defiProtocol, "AdminConfirmedEmergency").withArgs(admin2.address);
 
-          await expect(defiProtocol.connect(admin2).unstakeUser(user1.address, 100)).to.be.reverted;
+          await expect(defiProtocol.connect(admin2).unstakeUser(user1.address, 100)).to.be.revertedWith("Not an emergency");
           expect(await defiToken.balanceOf(user1.address)).equal(0);
         });
 
         it("Admins can unstake if emergency", async() => {
-          await defiProtocol.connect(admin1).confirmEmergencyPanic();
-          await defiProtocol.connect(admin2).confirmEmergencyPanic();
+          await expect(defiProtocol.connect(admin1).confirmEmergencyPanic()).to.emit(defiProtocol, "AdminConfirmedEmergency").withArgs(admin1.address);
+          await expect(defiProtocol.connect(admin2).confirmEmergencyPanic()).to.emit(defiProtocol, "AdminConfirmedEmergency").withArgs(admin2.address);
 
-          await expect(defiProtocol.connect(admin2).unstakeUser(user1.address, 100)).to.be.not.reverted;
+          await expect(defiProtocol.connect(admin2).unstakeUser(user1.address, 100)).to.emit(defiProtocol, "AdminUnstakedUser").withArgs(user1.address);
           expect(await defiToken.balanceOf(user1.address)).equal(100);
         });
       });
@@ -213,19 +212,19 @@ describe("Contract deployment", () => {
         await defiToken.transfer(user2.address, 100);
         await defiToken.connect(user2).approve(defiProtocol.address, 100);
 
-        await expect(defiProtocol.connect(admin1).addUserToBlacklist(user2.address)).to.be.not.reverted;
+        await expect(defiProtocol.connect(admin1).addUserToBlacklist(user2.address)).to.emit(defiProtocol, "AdminAddedBlacklist").withArgs(user2.address);
 
         await expect(defiProtocol.connect(user2).lock(100)).to.be.revertedWith("Blacklisted users can't lock");
         expect (await defiProtocol.getNumUserVestingSchedules(user2.address)).equal(0);
       });
 
       it("Non-admin not allowed to confirm EmergencyPanic", async () => {
-        await expect(defiProtocol.connect(user1).confirmEmergencyPanic()).to.be.reverted;
+        await expect(defiProtocol.connect(user1).confirmEmergencyPanic()).to.be.revertedWith("Not an Admin");
       });
 
       it("Admin can confirm EmergencyPanic only once", async () => {
-        await expect(defiProtocol.connect(admin1).confirmEmergencyPanic()).to.be.not.reverted;
-        await expect(defiProtocol.connect(admin1).confirmEmergencyPanic()).to.be.reverted;
+        await expect(defiProtocol.connect(admin1).confirmEmergencyPanic()).to.emit(defiProtocol, "AdminConfirmedEmergency").withArgs(admin1.address);
+        await expect(defiProtocol.connect(admin1).confirmEmergencyPanic()).to.be.revertedWith("Admin already confirmed EmergencyPanic");
       });
 
       describe("Unlock tokens after EmergencyPanic", () => {
@@ -349,7 +348,7 @@ describe("Contract deployment", () => {
           expect(await defiCard.ownerOf(1)).equal(user1.address);
           await defiCard.connect(user1).setApprovalForAll(defiProtocol.address, true);
 
-          await expect(defiProtocol.connect(user1).banishCard(1)).to.be.not.reverted;
+          await expect(defiProtocol.connect(user1).banishCard(1)).to.emit(defiProtocol, "CardBanished").withArgs(1);
 
           expect(await defiCard.ownerOf(1)).not.equal(user1.address);
           expect(await defiToken.balanceOf(user1.address)).equal(200);
@@ -362,7 +361,7 @@ describe("Contract deployment", () => {
           const twoDays = 2.5 * 24 * 60 * 60;
           await ethers.provider.send("evm_increaseTime", [twoDays]);
           await ethers.provider.send("evm_mine");
-          await expect(defiProtocol.connect(user1).banishCard(1)).to.be.not.reverted;
+          await expect(defiProtocol.connect(user1).banishCard(1)).to.emit(defiProtocol, "CardBanished").withArgs(1);
 
           expect(await defiCard.ownerOf(1)).not.equal(user1.address);
           console.log("User1 balance: " + (await defiToken.balanceOf(user1.address)).toString());

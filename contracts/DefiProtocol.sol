@@ -99,21 +99,21 @@ contract DefiProtocol is IERC721ReceiverUpgradeable, Initializable, ReentrancyGu
         require(!adminConfirmations[msg.sender], "Admin already confirmed EmergencyPanic");
         adminConfirmations[msg.sender] = true;
         confirmedEmergencyPanic = confirmedEmergencyPanic.add(1);
-        emit AdminConfirmedEmergency();
+        emit AdminConfirmedEmergency(msg.sender);
     }
 
     function revokeEmergencyPanic() external adminOnly nonReentrant {
         require(adminConfirmations[msg.sender], "No confirmed EmergencyPanic from Admin yet");
         adminConfirmations[msg.sender] = false;
         confirmedEmergencyPanic = confirmedEmergencyPanic.sub(1);
-        emit AdminRevokedEmergency();
+        emit AdminRevokedEmergency(msg.sender);
     }
 
     // Even a single admin can add a user to blacklist
     function addUserToBlacklist(address userAddress) external adminOnly {
         require(!blackList[userAddress], "User already blacklisted");
         blackList[userAddress] = true;
-        emit AdminAddedBlacklist();
+        emit AdminAddedBlacklist(userAddress);
     }
 
     function stake(uint256 amount) external nonReentrant {
@@ -134,7 +134,7 @@ contract DefiProtocol is IERC721ReceiverUpgradeable, Initializable, ReentrancyGu
         require(isEmergencyPanic(), "Not an emergency");
         _stakes[userAddress] = _stakes[userAddress].sub(amount);
         _token.transfer(userAddress, amount);
-        emit AdminUnstakedUser();
+        emit AdminUnstakedUser(userAddress);
     }
 
     function lock(uint256 amount) external nonReentrant {
