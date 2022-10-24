@@ -22,7 +22,7 @@ contract DefiCard is ERC721, Ownable, ReentrancyGuard {
         uint8 evolution;
     }
 
-    mapping(uint256 => CardData) _cards;
+    mapping(uint256 => CardData) private _cards;
 
     constructor(string memory _name, string memory _symbol)
         ERC721(_name, _symbol) {}
@@ -44,7 +44,8 @@ contract DefiCard is ERC721, Ownable, ReentrancyGuard {
         CardData storage card = _cards[cardId];
         uint256 durationSeconds = block.timestamp.sub(card.mintedOn);
         uint256 durationDays = durationSeconds.div(24 * 60 * 60);
-        return card.initialPower + (durationDays * card.evolution * card.initialPower * (card.tier + card.color + card.symbol)).div(100);
+        return card.initialPower +
+            (durationDays * card.evolution * card.initialPower * (card.tier + card.color + card.symbol)).div(100);
     }
 
     function getCardStats(uint256 cardId) view external returns(uint256, uint256, uint8, uint8, uint8, uint8) {

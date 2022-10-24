@@ -45,7 +45,8 @@ contract DefiProtocol is IERC721ReceiverUpgradeable, Initializable, ReentrancyGu
         _;
     }
 
-    function initialize(address token, address card, address[] memory _admins, uint256 _requiredConfirmedEmergencyPanic) initializer public {
+    function initialize(address token, address card, address[] memory _admins, uint256 _requiredConfirmedEmergencyPanic)
+        initializer public {
         require(token != address(0));
         require(_admins.length > 1, "At least 2 admins required");
         require(_requiredConfirmedEmergencyPanic > 1
@@ -181,7 +182,8 @@ contract DefiProtocol is IERC721ReceiverUpgradeable, Initializable, ReentrancyGu
 
     function getUserVestedTokensByIndex(address userAddress, uint256 index) view public returns(uint256) {
         require(index < getNumUserVestingSchedules(userAddress));
-        VestingSchedule storage vestingSchedule = _vestingSchedules[getUserVestingIdByIndex(userAddress, index)]; // extract in function
+        // extract in function
+        VestingSchedule storage vestingSchedule = _vestingSchedules[getUserVestingIdByIndex(userAddress, index)];
         uint256 vestingDurationMonths = (block.timestamp.sub(vestingSchedule.start)).div(2_629_746);
         if (vestingDurationMonths >= 12 || isEmergencyPanic()) {
             return vestingSchedule.amount;
