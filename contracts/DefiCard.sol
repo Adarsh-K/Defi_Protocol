@@ -11,6 +11,8 @@ import "hardhat/console.sol";
 contract DefiCard is ERC721, Ownable, ReentrancyGuard {
     using SafeMath for uint256;
 
+    event MintedCard(uint256 indexed cardId, address indexed user, uint256 initialPower);
+
     // TODO set enums for color & symbol
 
     struct CardData {
@@ -38,6 +40,7 @@ contract DefiCard is ERC721, Ownable, ReentrancyGuard {
         uint8 evolution = uint8(random.mod(100).add(1));
 
         _cards[cardId] = CardData(block.timestamp, _initialPower, color, symbol, tier, evolution);
+        emit MintedCard(cardId, userAddress, _initialPower);
     }
 
     function getPower(uint256 cardId) view external returns(uint256) {

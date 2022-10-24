@@ -17,6 +17,14 @@ contract DefiProtocol is IERC721ReceiverUpgradeable, Initializable, ReentrancyGu
 
     event Staked(address indexed user, uint256 amount);
     event Unstaked(address indexed user, uint256 amount);
+    event Locked(address indexed user, uint256 amount);
+    event Claimed(address indexed user, uint256 index);
+    event ClaimedAll(address indexed user);
+    event CardBanished(uint256 indexed cardId);
+    event AdminConfirmedEmergency();
+    event AdminRevokedEmergency();
+    event AdminAddedBlacklist();
+    event AdminUnstakedUser();
 
     Counters.Counter private _cardIds;
 
@@ -77,6 +85,7 @@ contract DefiProtocol is IERC721ReceiverUpgradeable, Initializable, ReentrancyGu
         _card.safeTransferFrom(msg.sender, address(this), cardId);
         _token.mint(msg.sender, _card.getPower(cardId));
         // TODO: burn cardId
+        emit CardBanished(cardId);
     }
 
     function onERC721Received(address, address, uint256, bytes calldata) external pure returns (bytes4) {
@@ -91,18 +100,21 @@ contract DefiProtocol is IERC721ReceiverUpgradeable, Initializable, ReentrancyGu
         require(!adminConfirmations[msg.sender], "Admin already confirmed EmergencyPanic");
         adminConfirmations[msg.sender] = true;
         confirmedEmergencyPanic = confirmedEmergencyPanic.add(1);
+        emit AdminConfirmedEmergency();
     }
 
     function revokeEmergencyPanic() public adminOnly nonReentrant {
         require(adminConfirmations[msg.sender], "No confirmed EmergencyPanic from Admin yet");
         adminConfirmations[msg.sender] = false;
         confirmedEmergencyPanic = confirmedEmergencyPanic.sub(1);
+        emit AdminRevokedEmergency();
     }
 
     // Even a single admin can add a user to blacklist
     function addUserToBlacklist(address userAddress) public adminOnly {
         require(!blackList[userAddress], "User already blacklisted");
         blackList[userAddress] = true;
+        emit AdminAddedBlacklist();
     }
 
     function stake(uint256 amount) public nonReentrant {
@@ -123,6 +135,7 @@ contract DefiProtocol is IERC721ReceiverUpgradeable, Initializable, ReentrancyGu
         require(isEmergencyPanic(), "Not an emergency");
         _stakes[userAddress] = _stakes[userAddress].sub(amount);
         _token.transfer(userAddress, amount);
+        emit AdminUnstakedUser();
     }
 
     function lock(uint256 amount) public nonReentrant {
@@ -136,6 +149,7 @@ contract DefiProtocol is IERC721ReceiverUpgradeable, Initializable, ReentrancyGu
         );
         _numVestingSchedules = _numVestingSchedules.add(1);
         _userTotalVestingSchedules[msg.sender] = _userTotalVestingSchedules[msg.sender].add(1);
+        emit Locked(msg.sender, amount);
     }
 
     function claim(uint256 index) public nonReentrant {
@@ -145,6 +159,7 @@ contract DefiProtocol is IERC721ReceiverUpgradeable, Initializable, ReentrancyGu
         VestingSchedule storage vestingSchedule = _vestingSchedules[getUserVestingIdByIndex(msg.sender, index)];
         vestingSchedule.claimed = vestingSchedule.claimed.add(unclaimedTokens);
         _token.transfer(payable(msg.sender), unclaimedTokens);
+        emit Claimed(msg.sender, index);
     }
 
     function claimAll() public nonReentrant {
@@ -156,6 +171,7 @@ contract DefiProtocol is IERC721ReceiverUpgradeable, Initializable, ReentrancyGu
             totalClaimableTokens = totalClaimableTokens.add(unclaimedTokens);
         }
         _token.transfer(payable(msg.sender), totalClaimableTokens);
+        emit ClaimedAll(msg.sender);
     }
 
     function getUnclaimedToken(address userAddess, uint256 index) view public returns(uint256) {
