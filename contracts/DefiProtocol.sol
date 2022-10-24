@@ -194,7 +194,7 @@ contract DefiProtocol is IERC721ReceiverUpgradeable, Initializable, ReentrancyGu
     function getUserVestedTokensByIndex(address userAddress, uint256 index) view public returns(uint256) {
         require(index < getNumUserVestingSchedules(userAddress));
         VestingSchedule storage vestingSchedule = _getVestingSchedule(userAddress, index);
-        uint256 vestingDurationMonths = (block.timestamp.sub(vestingSchedule.start)).div(2_629_746);
+        uint256 vestingDurationMonths = (block.timestamp.sub(vestingSchedule.start)).div(2_592_000); // 30 days month
         if (vestingDurationMonths >= 12 || isEmergencyPanic()) {
             return vestingSchedule.amount;
         }
