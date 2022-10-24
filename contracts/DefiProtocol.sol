@@ -9,24 +9,16 @@ import "@openzeppelin/contracts/utils/Counters.sol";
 import "@openzeppelin/contracts-upgradeable/utils/AddressUpgradeable.sol";
 import "./DefiCard.sol";
 import "./DefiToken.sol";
+import "./interface/Module1.sol";
+import "./interface/Module2.sol";
+import { Module1Helper } from "./lib/Module1Helper.sol";
 
 import "hardhat/console.sol";
 
-contract DefiProtocol is IERC721ReceiverUpgradeable, Initializable, ReentrancyGuardUpgradeable {
+contract DefiProtocol is IERC721ReceiverUpgradeable, Initializable, ReentrancyGuardUpgradeable, Module1, Module2 {
     using SafeMath for uint256;
     using Counters for Counters.Counter;
     using AddressUpgradeable for address;
-
-    event Staked(address indexed user, uint256 amount);
-    event Unstaked(address indexed user, uint256 amount);
-    event Locked(address indexed user, uint256 amount);
-    event Claimed(address indexed user, uint256 index);
-    event ClaimedAll(address indexed user);
-    event CardBanished(uint256 indexed cardId);
-    event AdminConfirmedEmergency();
-    event AdminRevokedEmergency();
-    event AdminAddedBlacklist();
-    event AdminUnstakedUser();
 
     Counters.Counter private _cardIds;
 
@@ -103,14 +95,14 @@ contract DefiProtocol is IERC721ReceiverUpgradeable, Initializable, ReentrancyGu
         return confirmedEmergencyPanic >= requiredConfirmedEmergencyPanic;
     }
 
-    function confirmEmergencyPanic() public adminOnly nonReentrant {
+    function confirmEmergencyPanic() external adminOnly nonReentrant {
         require(!adminConfirmations[msg.sender], "Admin already confirmed EmergencyPanic");
         adminConfirmations[msg.sender] = true;
         confirmedEmergencyPanic = confirmedEmergencyPanic.add(1);
         emit AdminConfirmedEmergency();
     }
 
-    function revokeEmergencyPanic() public adminOnly nonReentrant {
+    function revokeEmergencyPanic() external adminOnly nonReentrant {
         require(adminConfirmations[msg.sender], "No confirmed EmergencyPanic from Admin yet");
         adminConfirmations[msg.sender] = false;
         confirmedEmergencyPanic = confirmedEmergencyPanic.sub(1);
@@ -118,26 +110,26 @@ contract DefiProtocol is IERC721ReceiverUpgradeable, Initializable, ReentrancyGu
     }
 
     // Even a single admin can add a user to blacklist
-    function addUserToBlacklist(address userAddress) public adminOnly {
+    function addUserToBlacklist(address userAddress) external adminOnly {
         require(!blackList[userAddress], "User already blacklisted");
         blackList[userAddress] = true;
         emit AdminAddedBlacklist();
     }
 
-    function stake(uint256 amount) public nonReentrant {
+    function stake(uint256 amount) external nonReentrant {
         _token.transferFrom(msg.sender, address(this), amount);
         _stakes[msg.sender] = _stakes[msg.sender].add(amount);
         emit Staked(msg.sender, amount);
     }
 
-    function unstake(uint256 amount) public nonReentrant {
+    function unstake(uint256 amount) external nonReentrant {
         require(_stakes[msg.sender] >= amount, "Insufficient Stake");
         _stakes[msg.sender] = _stakes[msg.sender].sub(amount);
         _token.transfer(msg.sender, amount);
         emit Unstaked(msg.sender, amount);
     }
 
-    function unstakeUser(address userAddress, uint256 amount) public adminOnly nonReentrant {
+    function unstakeUser(address userAddress, uint256 amount) external adminOnly nonReentrant {
         require(_stakes[userAddress] >= amount, "Insufficient Stake");
         require(isEmergencyPanic(), "Not an emergency");
         _stakes[userAddress] = _stakes[userAddress].sub(amount);
@@ -145,35 +137,36 @@ contract DefiProtocol is IERC721ReceiverUpgradeable, Initializable, ReentrancyGu
         emit AdminUnstakedUser();
     }
 
-    function lock(uint256 amount) public nonReentrant {
+    function lock(uint256 amount) external nonReentrant {
         require(!blackList[msg.sender], "Blacklisted users can't lock");
         require(amount > 0, "Locked amount should be > 0");
         _token.transferFrom(msg.sender, address(this), amount);
-        _vestingSchedules[getUserNextVestingId(msg.sender)] = VestingSchedule(
-            block.timestamp,
-            amount,
-            0
-        );
+        _vestingSchedules[Module1Helper._getUserVestingIdByIndex( // Next Vesting
+            msg.sender, _userTotalVestingSchedules[msg.sender])] = VestingSchedule(
+                block.timestamp,
+                amount,
+                0
+            );
         _numVestingSchedules = _numVestingSchedules.add(1);
         _userTotalVestingSchedules[msg.sender] = _userTotalVestingSchedules[msg.sender].add(1);
         emit Locked(msg.sender, amount);
     }
 
-    function claim(uint256 index) public nonReentrant {
+    function claim(uint256 index) external nonReentrant {
         require(index < getNumUserVestingSchedules(msg.sender)); // put it in a modifier
-        uint256 unclaimedTokens = getUnclaimedToken(msg.sender, index);
+        uint256 unclaimedTokens = _getUnclaimedToken(msg.sender, index);
 
-        VestingSchedule storage vestingSchedule = getVestingSchedule(msg.sender, index);
+        VestingSchedule storage vestingSchedule = _getVestingSchedule(msg.sender, index);
         vestingSchedule.claimed = vestingSchedule.claimed.add(unclaimedTokens);
         _token.transfer(payable(msg.sender), unclaimedTokens);
         emit Claimed(msg.sender, index);
     }
 
-    function claimAll() public nonReentrant {
+    function claimAll() external nonReentrant {
         uint256 totalClaimableTokens;
         for (uint256 index = 0; index < getNumUserVestingSchedules(msg.sender); index++) {
-            uint256 unclaimedTokens = getUnclaimedToken(msg.sender, index);
-            VestingSchedule storage vestingSchedule = getVestingSchedule(msg.sender, index);
+            uint256 unclaimedTokens = _getUnclaimedToken(msg.sender, index);
+            VestingSchedule storage vestingSchedule = _getVestingSchedule(msg.sender, index);
             vestingSchedule.claimed = vestingSchedule.claimed.add(unclaimedTokens);
             totalClaimableTokens = totalClaimableTokens.add(unclaimedTokens);
         }
@@ -181,22 +174,16 @@ contract DefiProtocol is IERC721ReceiverUpgradeable, Initializable, ReentrancyGu
         emit ClaimedAll(msg.sender);
     }
 
-    function getUnclaimedToken(address userAddress, uint256 index) view public returns(uint256) {
-        uint256 vestedTokens = getUserVestedTokensByIndex(userAddress, index);
-        VestingSchedule storage vestingSchedule = getVestingSchedule(userAddress, index);
-        return vestedTokens.sub(vestingSchedule.claimed);
-    }
-
-    function getUserNextVestingId(address userAddress) view internal returns(bytes32) {
-        return keccak256(abi.encodePacked(userAddress, _userTotalVestingSchedules[userAddress]));
-    }
-
-    function getUserVestingIdByIndex(address userAddress, uint256 index) pure internal returns(bytes32) {
-        return keccak256(abi.encodePacked(userAddress, index));
-    }
-
     function getTotalVestingSchedules() view external returns(uint256) {
         return _numVestingSchedules;
+    }
+
+    function getAllUserVestedTokens(address userAddress) view external returns(uint256) {
+        uint256 totalVestedTokens;
+        for (uint256 index = 0; index < getNumUserVestingSchedules(userAddress); index++) {
+            totalVestedTokens = totalVestedTokens.add(getUserVestedTokensByIndex(userAddress, index));
+        }
+        return totalVestedTokens;
     }
 
     function getNumUserVestingSchedules(address userAddress) view public returns(uint256) {
@@ -205,7 +192,7 @@ contract DefiProtocol is IERC721ReceiverUpgradeable, Initializable, ReentrancyGu
 
     function getUserVestedTokensByIndex(address userAddress, uint256 index) view public returns(uint256) {
         require(index < getNumUserVestingSchedules(userAddress));
-        VestingSchedule storage vestingSchedule = getVestingSchedule(userAddress, index);
+        VestingSchedule storage vestingSchedule = _getVestingSchedule(userAddress, index);
         uint256 vestingDurationMonths = (block.timestamp.sub(vestingSchedule.start)).div(2_629_746);
         if (vestingDurationMonths >= 12 || isEmergencyPanic()) {
             return vestingSchedule.amount;
@@ -213,15 +200,13 @@ contract DefiProtocol is IERC721ReceiverUpgradeable, Initializable, ReentrancyGu
         return vestingSchedule.amount.mul(vestingDurationMonths).div(12);
     }
 
-    function getAllUserVestedTokens(address userAddress) view public returns(uint256) {
-        uint256 totalVestedTokens;
-        for (uint256 index = 0; index < getNumUserVestingSchedules(userAddress); index++) {
-            totalVestedTokens = totalVestedTokens.add(getUserVestedTokensByIndex(userAddress, index));
-        }
-        return totalVestedTokens;
+    function _getUnclaimedToken(address userAddress, uint256 index) view internal returns(uint256) {
+        uint256 vestedTokens = getUserVestedTokensByIndex(userAddress, index);
+        VestingSchedule storage vestingSchedule = _getVestingSchedule(userAddress, index);
+        return vestedTokens.sub(vestingSchedule.claimed);
     }
 
-    function getVestingSchedule(address userAddress, uint256 index) view internal returns(VestingSchedule storage) {
-        return _vestingSchedules[getUserVestingIdByIndex(userAddress, index)];
+    function _getVestingSchedule(address userAddress, uint256 index) view internal returns(VestingSchedule storage) {
+        return _vestingSchedules[Module1Helper._getUserVestingIdByIndex(userAddress, index)];
     }
 }
