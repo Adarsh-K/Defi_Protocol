@@ -41,6 +41,7 @@ contract DefiProtocol is IERC721ReceiverUpgradeable, Initializable, ReentrancyGu
     mapping(address => bool) public isAdmin;
     mapping(address => bool) public adminConfirmations;
     mapping(address => bool) public blackList;
+    uint256[25] __gap;
 
     modifier adminOnly() {
         require(isAdmin[msg.sender], "Not an Admin");
