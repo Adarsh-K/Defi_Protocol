@@ -2,6 +2,7 @@
 pragma solidity ^0.8.9;
 
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
+import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC721/IERC721ReceiverUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
@@ -10,9 +11,12 @@ import "./DefiToken.sol";
 
 import "hardhat/console.sol";
 
-contract DefiProtocol is IERC721ReceiverUpgradeable, Initializable {
+contract DefiProtocol is IERC721ReceiverUpgradeable, Initializable, ReentrancyGuardUpgradeable {
     using SafeMath for uint256;
     using Counters for Counters.Counter;
+
+    event Staked(address indexed user, uint256 amount);
+    event Unstaked(address indexed user, uint256 amount);
 
     Counters.Counter private _cardIds;
 
@@ -57,16 +61,17 @@ contract DefiProtocol is IERC721ReceiverUpgradeable, Initializable {
         requiredConfirmedEmergencyPanic = _requiredConfirmedEmergencyPanic;
         _token = DefiToken(token);
         _card = DefiCard(card);
+        __ReentrancyGuard_init();
     }
 
-    function createCard(uint256 amount) external returns(uint256) {
+    function createCard(uint256 amount) external nonReentrant returns(uint256) {
         _cardIds.increment();
         _token.transferFrom(msg.sender, address(this), amount);
         _card.mint(_cardIds.current(), msg.sender, amount);
         return _cardIds.current();
     }
 
-    function banishCard(uint256 cardId) external {
+    function banishCard(uint256 cardId) external nonReentrant {
         require(_card.ownerOf(cardId) == msg.sender, "Only card owner can banish the card");
         _card.safeTransferFrom(msg.sender, address(this), cardId);
         _token.mint(msg.sender, _card.getPower(cardId));
@@ -81,13 +86,13 @@ contract DefiProtocol is IERC721ReceiverUpgradeable, Initializable {
         return confirmedEmergencyPanic >= requiredConfirmedEmergencyPanic;
     }
 
-    function confirmEmergencyPanic() public adminOnly {
+    function confirmEmergencyPanic() public adminOnly nonReentrant {
         require(!adminConfirmations[msg.sender], "Admin already confirmed EmergencyPanic");
         adminConfirmations[msg.sender] = true;
         confirmedEmergencyPanic = confirmedEmergencyPanic.add(1);
     }
 
-    function revokeEmergencyPanic() public adminOnly {
+    function revokeEmergencyPanic() public adminOnly nonReentrant {
         require(adminConfirmations[msg.sender], "No confirmed EmergencyPanic from Admin yet");
         adminConfirmations[msg.sender] = false;
         confirmedEmergencyPanic = confirmedEmergencyPanic.sub(1);
@@ -99,25 +104,27 @@ contract DefiProtocol is IERC721ReceiverUpgradeable, Initializable {
         blackList[userAddress] = true;
     }
 
-    function stake(uint256 amount) public {
-        _token.transferFrom(msg.sender, address(this), amount); // safe?
+    function stake(uint256 amount) public nonReentrant {
+        _token.transferFrom(msg.sender, address(this), amount);
         _stakes[msg.sender] = _stakes[msg.sender].add(amount);
+        emit Staked(msg.sender, amount);
     }
 
-    function unstake(uint256 amount) public {
+    function unstake(uint256 amount) public nonReentrant {
         require(_stakes[msg.sender] >= amount, "Insufficient Stake");
-        _token.transfer(msg.sender, amount);
         _stakes[msg.sender] = _stakes[msg.sender].sub(amount);
+        _token.transfer(msg.sender, amount);
+        emit Unstaked(msg.sender, amount);
     }
 
-    function unstakeUser(address userAddress, uint256 amount) public adminOnly {
+    function unstakeUser(address userAddress, uint256 amount) public adminOnly nonReentrant {
         require(_stakes[userAddress] >= amount, "Insufficient Stake");
         require(isEmergencyPanic(), "Not an emergency");
-        _token.transfer(userAddress, amount);
         _stakes[userAddress] = _stakes[userAddress].sub(amount);
+        _token.transfer(userAddress, amount);
     }
 
-    function lock(uint256 amount) public {
+    function lock(uint256 amount) public nonReentrant {
         require(!blackList[msg.sender], "Blacklisted users can't lock");
         require(amount > 0, "Locked amount should be > 0");
         _token.transferFrom(msg.sender, address(this), amount);
@@ -130,7 +137,7 @@ contract DefiProtocol is IERC721ReceiverUpgradeable, Initializable {
         _userTotalVestingSchedules[msg.sender] = _userTotalVestingSchedules[msg.sender].add(1);
     }
 
-    function claim(uint256 index) public {
+    function claim(uint256 index) public nonReentrant {
         require(index < getNumUserVestingSchedules(msg.sender)); // put it in a modifier
         uint256 unclaimedTokens = getUnclaimedToken(msg.sender, index);
 
@@ -139,7 +146,7 @@ contract DefiProtocol is IERC721ReceiverUpgradeable, Initializable {
         _token.transfer(payable(msg.sender), unclaimedTokens);
     }
 
-    function claimAll() public {
+    function claimAll() public nonReentrant {
         uint256 totalClaimableTokens;
         for (uint256 index = 0; index < getNumUserVestingSchedules(msg.sender); index++) {
             uint256 unclaimedTokens = getUnclaimedToken(msg.sender, index);

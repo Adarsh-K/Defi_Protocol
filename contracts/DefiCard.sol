@@ -4,10 +4,11 @@ pragma solidity ^0.8.9;
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
 import "hardhat/console.sol";
 
-contract DefiCard is ERC721, Ownable {
+contract DefiCard is ERC721, Ownable, ReentrancyGuard {
     using SafeMath for uint256;
 
     // TODO set enums for color & symbol
@@ -26,7 +27,7 @@ contract DefiCard is ERC721, Ownable {
     constructor(string memory _name, string memory _symbol)
         ERC721(_name, _symbol) {}
 
-    function mint(uint256 cardId, address userAddress, uint256 _initialPower) external onlyOwner {
+    function mint(uint256 cardId, address userAddress, uint256 _initialPower) external onlyOwner nonReentrant {
         _safeMint(userAddress, cardId);
 
         uint256 random = block.timestamp;

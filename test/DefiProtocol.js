@@ -15,8 +15,8 @@ describe("Contract deployment", () => {
     defiToken = await defiTokenFactory.deploy("DefiToken", "DFT", 1000000);
     await defiToken.deployed();
 
-    defiCard = await defiCardFactory.deploy("DefiCard", "DFC");;
-    await defiToken.deployed();
+    defiCard = await defiCardFactory.deploy("DefiCard", "DFC");
+    await defiCard.deployed();
   });
 
   describe("DefiToken deployment", () => {
@@ -290,8 +290,6 @@ describe("Contract deployment", () => {
     });
 
     describe("Card", () => {
-      let card1Id, card2Id;
-
       beforeEach(async () => {
         await defiToken.transfer(user1.address, 200);
         await defiToken.connect(user1).approve(defiProtocol.address, 100);
@@ -299,7 +297,7 @@ describe("Contract deployment", () => {
 
       describe("Create Card", () => {
         beforeEach(async () => {
-          card1Id = await defiProtocol.connect(user1).createCard(50);
+          await defiProtocol.connect(user1).createCard(50);
         });
 
         it("Can't create card of more initialPower than approved", async () => {
@@ -312,7 +310,7 @@ describe("Contract deployment", () => {
         });
 
         it("User can create multiple cards", async () => {
-          card2Id = await defiProtocol.connect(user1).createCard(50);
+          await defiProtocol.connect(user1).createCard(50);
           expect(await defiCard.ownerOf(2)).equal(user1.address);
           expect(await defiToken.balanceOf(user1.address)).equal(100);
         });
@@ -333,7 +331,7 @@ describe("Contract deployment", () => {
 
       describe("Banish Card", () => {
         beforeEach(async () => {
-          card1Id = await defiProtocol.connect(user1).createCard(50);
+          await defiProtocol.connect(user1).createCard(50);
         });
 
         it("Fail banish from another user", async () => {
