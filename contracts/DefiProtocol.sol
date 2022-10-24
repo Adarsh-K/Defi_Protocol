@@ -6,6 +6,7 @@ import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.
 import "@openzeppelin/contracts-upgradeable/token/ERC721/IERC721ReceiverUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
+import "@openzeppelin/contracts-upgradeable/utils/AddressUpgradeable.sol";
 import "./DefiCard.sol";
 import "./DefiToken.sol";
 
@@ -14,6 +15,7 @@ import "hardhat/console.sol";
 contract DefiProtocol is IERC721ReceiverUpgradeable, Initializable, ReentrancyGuardUpgradeable {
     using SafeMath for uint256;
     using Counters for Counters.Counter;
+    using AddressUpgradeable for address;
 
     event Staked(address indexed user, uint256 amount);
     event Unstaked(address indexed user, uint256 amount);
@@ -83,8 +85,13 @@ contract DefiProtocol is IERC721ReceiverUpgradeable, Initializable, ReentrancyGu
     function banishCard(uint256 cardId) external nonReentrant {
         require(_card.ownerOf(cardId) == msg.sender, "Only card owner can banish the card");
         _card.safeTransferFrom(msg.sender, address(this), cardId);
-        _token.mint(msg.sender, _card.getPower(cardId));
-        // TODO: burn cardId
+
+        bytes memory data = abi.encodeWithSignature("safeMint(address,uint256)", msg.sender, _card.getPower(cardId));
+        bytes memory returndata = address(_token).functionCall(data, "SafeERC20: low-level call failed");
+        if (returndata.length > 0) {
+            require(abi.decode(returndata, (bool)), "SafeERC20: ERC20 operation did not succeed");
+        }
+
         emit CardBanished(cardId);
     }
 

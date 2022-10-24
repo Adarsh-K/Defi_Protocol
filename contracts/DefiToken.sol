@@ -14,7 +14,7 @@ contract DefiToken is ERC20Callback, Ownable, ReentrancyGuard {
         _mint(msg.sender, _initialSupply);
     }
 
-    function mint(address userAddress, uint256 amount) external onlyOwner nonReentrant {
+    function safeMint(address userAddress, uint256 amount) external onlyOwner nonReentrant {
         _mint(userAddress, amount);
         emit MintedToken(userAddress, amount);
     }
