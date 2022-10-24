@@ -72,6 +72,15 @@ describe("Contract deployment", () => {
           await expect(defiProtocol.connect(user1).unstake(10)).to.emit(defiProtocol, "Unstaked").withArgs(user1.address, 10);
           expect(await defiToken.balanceOf(user1.address)).equal(60);
         });
+
+        it("Unstake more than once", async () => {
+          await expect(defiProtocol.connect(user1).unstake(10)).to.emit(defiProtocol, "Unstaked").withArgs(user1.address, 10);
+          expect(await defiToken.balanceOf(user1.address)).equal(60);
+          await expect(defiProtocol.connect(user1).unstake(30)).to.emit(defiProtocol, "Unstaked").withArgs(user1.address, 30);
+          expect(await defiToken.balanceOf(user1.address)).equal(90);
+          await expect(defiProtocol.connect(user1).unstake(20)).to.be.revertedWith("Insufficient Stake");
+          expect(await defiToken.balanceOf(user1.address)).equal(90);
+        });
       })
     });
 
@@ -166,6 +175,18 @@ describe("Contract deployment", () => {
           await expect(defiProtocol.connect(user1).claimAll()).to.emit(defiProtocol, "ClaimedAll").withArgs(user1.address);
           expect(await defiToken.balanceOf(user1.address)).equal(120 + 240);
         });
+
+        it("Claim more than once", async () => {
+          const twoYear = 2 * 12 * 31 * 24 * 60 * 60;
+          await ethers.provider.send("evm_increaseTime", [twoYear]);
+          await ethers.provider.send("evm_mine");
+          await expect(defiProtocol.connect(user1).claimAll()).to.emit(defiProtocol, "ClaimedAll").withArgs(user1.address);
+          expect(await defiToken.balanceOf(user1.address)).equal(120 + 240);
+
+          expect(await defiProtocol.getAllUserVestedTokens(user1.address)).equal(360);
+          await expect(defiProtocol.connect(user1).claimAll()).to.emit(defiProtocol, "ClaimedAll").withArgs(user1.address);
+          expect(await defiToken.balanceOf(user1.address)).equal(360);
+        });
       });
     });
 
@@ -194,6 +215,18 @@ describe("Contract deployment", () => {
           await expect(defiProtocol.connect(admin2).confirmEmergencyPanic()).to.emit(defiProtocol, "AdminConfirmedEmergency").withArgs(admin2.address);
 
           await expect(defiProtocol.connect(admin2).unstakeUser(user1.address, 100)).to.emit(defiProtocol, "AdminUnstakedUser").withArgs(user1.address);
+          expect(await defiToken.balanceOf(user1.address)).equal(100);
+        });
+
+        it("Unstake user more than once", async () => {
+          await expect(defiProtocol.connect(admin1).confirmEmergencyPanic()).to.emit(defiProtocol, "AdminConfirmedEmergency").withArgs(admin1.address);
+          await expect(defiProtocol.connect(admin2).confirmEmergencyPanic()).to.emit(defiProtocol, "AdminConfirmedEmergency").withArgs(admin2.address);
+
+          await expect(defiProtocol.connect(admin2).unstakeUser(user1.address, 50)).to.emit(defiProtocol, "AdminUnstakedUser").withArgs(user1.address);
+          expect(await defiToken.balanceOf(user1.address)).equal(50);
+          await expect(defiProtocol.connect(admin2).unstakeUser(user1.address, 50)).to.emit(defiProtocol, "AdminUnstakedUser").withArgs(user1.address);
+          expect(await defiToken.balanceOf(user1.address)).equal(100);
+          await expect(defiProtocol.connect(admin2).unstakeUser(user1.address, 10)).to.be.revertedWith("Insufficient Stake");
           expect(await defiToken.balanceOf(user1.address)).equal(100);
         });
       });
@@ -273,6 +306,7 @@ describe("Contract deployment", () => {
           await defiProtocol.connect(admin2).confirmEmergencyPanic();
           expect(await defiProtocol.confirmedEmergencyPanic()).equal(2);
 
+          // Revoked
           await defiProtocol.connect(admin1).revokeEmergencyPanic();
           expect(await defiProtocol.confirmedEmergencyPanic()).equal(1);
 
