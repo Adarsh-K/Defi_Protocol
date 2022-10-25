@@ -13,8 +13,6 @@ import "./interface/Module1.sol";
 import "./interface/Module2.sol";
 import { Module1Helper } from "./lib/Module1Helper.sol";
 
-import "hardhat/console.sol";
-
 contract DefiProtocol is IERC721ReceiverUpgradeable, Initializable, ReentrancyGuardUpgradeable, Module1, Module2 {
     using SafeMath for uint256;
     using Counters for Counters.Counter;
